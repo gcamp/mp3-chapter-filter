@@ -15,9 +15,10 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
         output_file (str): Path to the output MP3 file.
         filter_string (str): String to filter chapters to be removed.
     """
-
+    print("Opening MP3 file")
     audio = MP3(input_file, ID3=ID3)
-    print(f"Opening MP3 file: {input_file}")
+    
+    print(f"Opening id3 file: {input_file}")
     id3 = ID3(input_file)
     print(f"Successfully loaded ID3 tags from {input_file}")
     
@@ -127,6 +128,7 @@ if __name__ == '__main__':
     input_mp3_file = args.input_file
     output_mp3_file = args.output_file
     filter_string = args.filter_string
+    print(f"Filtering chapters, input MP3 file: {input_mp3_file}, Output MP3 file: {output_mp3_file}, Filter string: {filter_string}")
 
     remove_chapters_from_mp3(input_mp3_file, output_mp3_file, filter_string)
     print(f"Successfully created {output_mp3_file} with chapters containing '{filter_string}' removed.")
