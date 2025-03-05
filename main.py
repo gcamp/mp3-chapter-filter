@@ -3,6 +3,8 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, CHAP, CTOC
 import io
 import argparse
+from datetime import datetime
+from mutagen.id3 import TDRL
 
 def remove_chapters_from_mp3(input_file, output_file, filter_string):
     """
@@ -70,9 +72,20 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
     
     # Copy the ID3 tags to the new file after exporting
     output_id3 = ID3(output_file)
+    # Copy all ID3 tags from the original file, except the chapters we want to remove
     for key, frame in id3.items():
         if not isinstance(frame, CHAP) or frame.element_id not in chapters_to_remove:
             output_id3.add(frame)
+    
+    # Make sure we're using the modified TOC that we updated earlier
+    if toc_element and toc_element.element_id in id3:
+        output_id3.add(id3[toc_element.element_id])
+
+    # Add current date as publication date
+    # Format date as YYYY-MM-DD (ID3v2.4 format)
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    output_id3.add(TDRL(encoding=3, text=current_date))
+    
     output_id3.save()
 
 if __name__ == '__main__':
