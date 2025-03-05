@@ -11,6 +11,10 @@ on:
     branches:
       - 'main'
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 permissions:
   contents: read
   packages: write
@@ -30,7 +34,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: gcamp/mp3-chapter-filter
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       -
         name: Login to DockerHub
         if: github.event_name != 'pull_request'
