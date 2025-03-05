@@ -31,7 +31,7 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
                         break
             
             if filter_string.lower() in title.lower():
-                print(f"Removing chapter {frame} with title '{title}'")
+                print(f"Removing chapter with title '{title}'")
                 chapters_to_remove.append(frame.element_id)
         elif isinstance(frame, CTOC):
             toc_element = frame
@@ -44,7 +44,6 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
 
     # Load the audio segment
     audio_segment = AudioSegment.from_mp3(input_file)
-    print(f"old audio segment duration: {len(audio_segment)}")
     
     # Create a new audio segment without the removed chapters
     new_audio_segment = AudioSegment.empty()
@@ -64,9 +63,7 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
         end_time = chapter.end_time
             
         chapter_segment = audio_segment[start_time:end_time]
-        print(f"Chapter {i+1} chapter {chapter} duration: {len(chapter_segment)}")
         new_audio_segment += chapter_segment
-        print(f"New audio segment duration: {len(new_audio_segment)}")
     
     # Export the new audio segment to a new MP3 file
     new_audio_segment.export(output_file, format="mp3")
