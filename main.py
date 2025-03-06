@@ -1,10 +1,9 @@
 from pydub import AudioSegment
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, CHAP, CTOC
+from mutagen.id3 import ID3, CHAP, CTOC, TDRL
 import io
 import argparse
 from datetime import datetime
-from mutagen.id3 import TDRL
 
 def remove_chapters_from_mp3(input_file, output_file, filter_string):
     """
@@ -26,6 +25,11 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
     print(f"Scanning for chapters with filter string: '{filter_string}'")
     chapters_to_remove = []
     toc_element = None
+    all_chapters = []
+    chapters_time_adjustments = []
+    total_time_adjustment = 0
+    
+    # First, collect all chapters and identify which ones to remove
     for key, frame in id3.items():
         if isinstance(frame, CHAP):
             # Extract the actual chapter title from the chapter's subframes
@@ -39,11 +43,29 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
             if filter_string.lower() in title.lower():
                 print(f"Removing chapter with title '{title}'")
                 chapters_to_remove.append(frame.element_id)
+                # Track the time adjustment needed for subsequent chapters
+                chapter_duration = frame.end_time - frame.start_time
+                total_time_adjustment += chapter_duration
             else:
                 print(f"Keeping chapter with title '{title}'")
+            
+            # Store all chapters for later processing
+            all_chapters.append((frame.element_id, frame, title, frame.start_time, frame.end_time))
+            chapters_time_adjustments.append(total_time_adjustment)
         elif isinstance(frame, CTOC):
             toc_element = frame
     
+    # Sort chapters by start time
+    all_chapters.sort(key=lambda x: x[3])
+    
+    # Update timing of remaining chapters
+    for i, (element_id, frame, title, start_time, end_time) in enumerate(all_chapters):
+        if element_id not in chapters_to_remove:
+            adjustment = chapters_time_adjustments[i]
+            frame.start_time -= adjustment
+            frame.end_time -= adjustment
+            print(f"Updated chapter '{title}': {start_time}ms → {frame.start_time}ms, {end_time}ms → {frame.end_time}ms")
+
     print(f"Found {len(chapters_to_remove)} chapters to remove")
     
     # Remove unwanted chapters from toc
@@ -51,7 +73,6 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
         print(f"Updating table of contents")
         new_child_element_ids = [x for x in toc_element.child_element_ids if x not in chapters_to_remove]
         toc_element.child_element_ids = new_child_element_ids
-        id3.save()
         print(f"Updated and saved TOC in original file")
 
     # Load the audio segment
@@ -94,18 +115,24 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
     # Copy the ID3 tags to the new file after exporting
     print("Copying ID3 tags to new file")
     output_id3 = ID3(output_file)
-    # Copy all ID3 tags from the original file, except the chapters we want to remove
-    tag_count = 0
-    for key, frame in id3.items():
-        if not isinstance(frame, CHAP) or frame.element_id not in chapters_to_remove:
-            output_id3.add(frame)
-            tag_count += 1
-    print(f"Copied {tag_count} ID3 tags to the new file")
-    
+
     # Make sure we're using the modified TOC that we updated earlier
-    if toc_element and toc_element.element_id in id3:
-        output_id3.add(id3[toc_element.element_id])
+    if toc_element:
+        output_id3.add(toc_element)
         print("Updated table of contents in new file")
+
+    # Copy all ID3 tags from the original file, except the chapters we want to remove
+    for key, frame in id3.items():
+        if isinstance(frame, CHAP):
+            # Only add chapters that aren't in our remove list
+            if frame.element_id not in chapters_to_remove:
+                # Chapters might need offset correction since we've modified the audio
+                output_id3.add(frame)
+        elif not isinstance(frame, CTOC):
+            # Add all non-chapter tags except table of contents
+            output_id3.add(frame)
+
+    print(f"Copied ID3 tags to the new file")
 
     # Add current date as publication date
     # Format date as YYYY-MM-DD (ID3v2.4 format)
