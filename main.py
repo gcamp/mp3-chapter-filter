@@ -29,7 +29,7 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
     chapters_time_adjustments = []
     total_time_adjustment = 0
     
-    # First, collect all chapters and identify which ones to remove
+    # First, collect all chapters
     for key, frame in id3.items():
         if isinstance(frame, CHAP):
             # Extract the actual chapter title from the chapter's subframes
@@ -40,20 +40,26 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
                         title = str(sub_frame)
                         break
             
-            if filter_string.lower() in title.lower():
-                print(f"Removing chapter with title '{title}'")
-                chapters_to_remove.append(frame.element_id)
-                # Track the time adjustment needed for subsequent chapters
-                chapter_duration = frame.end_time - frame.start_time
-                total_time_adjustment += chapter_duration
-            else:
-                print(f"Keeping chapter with title '{title}'")
-            
             # Store all chapters for later processing
             all_chapters.append((frame.element_id, frame, title, frame.start_time, frame.end_time))
-            chapters_time_adjustments.append(total_time_adjustment)
         elif isinstance(frame, CTOC):
             toc_element = frame
+    
+    # Sort chapters by start time
+    all_chapters.sort(key=lambda x: x[3])
+    
+    # Identify chapters to remove and calculate time adjustments
+    for element_id, frame, title, start_time, end_time in all_chapters:
+        if filter_string.lower() in title.lower():
+            print(f"Removing chapter with title '{title}'")
+            chapters_to_remove.append(element_id)
+            # Track the time adjustment needed for subsequent chapters
+            chapter_duration = end_time - start_time
+            total_time_adjustment += chapter_duration
+        else:
+            print(f"Keeping chapter with title '{title}'")
+        
+        chapters_time_adjustments.append(total_time_adjustment)
     
     # Sort chapters by start time
     all_chapters.sort(key=lambda x: x[3])
@@ -64,7 +70,7 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
             adjustment = chapters_time_adjustments[i]
             frame.start_time -= adjustment
             frame.end_time -= adjustment
-            print(f"Updated chapter '{title}': {start_time}ms → {frame.start_time}ms, {end_time}ms → {frame.end_time}ms")
+            print(f"Updated chapter '{title}': {start_time}ms → {frame.start_time}ms, {end_time}ms → {frame.end_time}ms (adjustment: {adjustment}ms)")
 
     print(f"Found {len(chapters_to_remove)} chapters to remove")
     
