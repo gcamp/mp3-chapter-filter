@@ -57,7 +57,7 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
             chapter_duration = end_time - start_time
             total_time_adjustment += chapter_duration
         else:
-            print(f"Keeping chapter with title '{title}'")
+            print(f"Keeping chapter with title '{title}' ({(end_time - start_time) / 1000:.2f} seconds)")
         
         chapters_time_adjustments.append(total_time_adjustment)
     
@@ -73,13 +73,6 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
             print(f"Updated chapter '{title}': {start_time}ms → {frame.start_time}ms, {end_time}ms → {frame.end_time}ms (adjustment: {adjustment}ms)")
 
     print(f"Found {len(chapters_to_remove)} chapters to remove")
-    
-    # Remove unwanted chapters from toc
-    if toc_element:
-        print(f"Updating table of contents")
-        new_child_element_ids = [x for x in toc_element.child_element_ids if x not in chapters_to_remove]
-        toc_element.child_element_ids = new_child_element_ids
-        print(f"Updated and saved TOC in original file")
 
     # Load the audio segment
     print(f"Loading audio data from {input_file}")
@@ -89,27 +82,18 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
     # Create a new audio segment without the removed chapters
     print("Creating new audio segment without filtered chapters")
     new_audio_segment = AudioSegment.empty()
-    
-    valid_chapters = []
-    for key, frame in id3.items():
-        if isinstance(frame, CHAP):
-            if frame.element_id not in chapters_to_remove:
-                valid_chapters.append(frame)
 
-    print(f"Found {len(valid_chapters)} valid chapters to keep")
-    
-    # Sort chapters by start time
-    valid_chapters.sort(key=lambda x: x.start_time)
+    print(f"Found {len(all_chapters)} valid chapters to keep")
     
     print("Processing chapters:")
-    for i, chapter in enumerate(valid_chapters):
-        start_time = chapter.start_time
-        end_time = chapter.end_time
-        duration = (end_time - start_time) / 1000  # Convert to seconds
-        print(f"  Chapter {i+1}/{len(valid_chapters)}: {start_time}ms to {end_time}ms ({duration:.2f}s)")
-        
-        chapter_segment = audio_segment[start_time:end_time]
-        new_audio_segment += chapter_segment
+    for i, (element_id, frame, title, start_time, end_time) in enumerate(all_chapters):
+        if element_id not in chapters_to_remove:
+            duration = (end_time - start_time) / 1000  # Convert to seconds
+            print(f"  Chapter {i+1}/{len(all_chapters)}: '{title}' from {start_time}ms to {end_time}ms ({duration:.2f}s, total duration: {len(new_audio_segment)/1000:.2f}s)")
+            frame.element_id = f'ch{i+1}'
+            
+            chapter_segment = audio_segment[start_time:end_time]
+            new_audio_segment += chapter_segment
     
     print(f"New audio duration: {len(new_audio_segment)/1000:.2f} seconds")
     
@@ -121,11 +105,15 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
     # Copy the ID3 tags to the new file after exporting
     print("Copying ID3 tags to new file")
     output_id3 = ID3(output_file)
-
-    # Make sure we're using the modified TOC that we updated earlier
-    if toc_element:
-        output_id3.add(toc_element)
-        print("Updated table of contents in new file")
+        
+    # Create a new TOC frame with updated chapter IDs
+    new_toc_element = CTOC(
+        element_id=toc_element.element_id,
+        flags=toc_element.flags,
+        child_element_ids=[f'ch{i+1}' for i in range(len(all_chapters)) if all_chapters[i][0] not in chapters_to_remove]
+    )
+    output_id3.add(new_toc_element)
+    print("Created new table of contents in new file")
 
     # Copy all ID3 tags from the original file, except the chapters we want to remove
     for key, frame in id3.items():
