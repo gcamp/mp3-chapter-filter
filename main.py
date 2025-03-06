@@ -42,7 +42,7 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
         for element_id, frame, title, start_time, end_time in all_chapters:
             if filter_string.lower() in title.lower():
                 print(f"Removing chapter: '{title}'")
-                chapters_to_remove.append(element_id)
+                chapters_to_remove.append(element_id)  
                 total_time_adjustment += (end_time - start_time)
             
             chapters_time_adjustments.append(total_time_adjustment)
@@ -68,6 +68,11 @@ def remove_chapters_from_mp3(input_file, output_file, filter_string):
                 frame.element_id = f'ch{chapter_count}'  # Renumber chapters sequentially
                 chapter_segment = audio_segment[start_time:end_time]
                 new_audio_segment += chapter_segment
+
+                # Remove subframe with the image if it exists
+                # there's a bug in mutagen that corrupt chapters with images, don't have the time to fix so just remove them
+                if 'APIC:' in frame.sub_frames:
+                    del frame.sub_frames['APIC:']
         
         # Export new audio
         print(f"Exporting new audio ({len(new_audio_segment)/1000:.2f}s) to {output_file}")
