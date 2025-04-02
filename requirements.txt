@@ -1,2 +1,2 @@
 pydub==0.25.1
-mutagen @ git+https://github.com/quodlibet/mutagen.git#62a7b3e
+mutagen==1.47.0
